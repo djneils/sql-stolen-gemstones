@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Investigation: The Stolen Gemstones</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Source+Code+Pro:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #0e0e12;
+    --bg-panel: #16161e;
+    --bg-editor: #1c1c28;
+    --bg-clue: #121218;
+    --accent-gem: #e85d75;
+    --accent-gem-dim: #a33d52;
+    --accent-gold: #d4a848;
+    --accent-gold-dim: #a67c28;
+    --accent-emerald: #3ddc84;
+    --accent-sapphire: #4a90d9;
+    --text-main: #e0ddd6;
+    --text-dim: #7a7770;
+    --text-bright: #f5f0e8;
+    --border: #2a2a36;
+    --border-gem: #3a2a32;
+    --success: #3ddc84;
+    --error: #e74c3c;
+    --table-stripe: #1a1a26;
+    --shadow: 0 4px 24px rgba(0,0,0,0.6);
+    --clue-bg: #14141c;
+    --solved-bg: rgba(61,220,132,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Lora', Georgia, serif;
+    background: var(--bg-dark);
+    color: var(--text-main);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(232,93,117,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 30%, rgba(74,144,217,0.03) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  header {
+    background: linear-gradient(135deg, #12101a 0%, #1e1220 50%, #12101a 100%);
+    border-bottom: 2px solid var(--accent-gem-dim);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .logo-area { display: flex; align-items: center; gap: 14px; }
+
+  .logo-area .badge {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--accent-gem), #c94060);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 0 20px rgba(232,93,117,0.35);
+    animation: gemPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes gemPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(232,93,117,0.35); }
+    50% { box-shadow: 0 0 30px rgba(232,93,117,0.55); }
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem; font-weight: 700;
+    color: var(--text-bright); letter-spacing: 1px;
+  }
+  h1 span { color: var(--accent-gem); }
+  .subtitle {
+    font-size: 0.72rem; color: var(--text-dim);
+    letter-spacing: 3px; text-transform: uppercase;
+    font-family: 'Source Code Pro', monospace;
+  }
+
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  button {
+    font-family: 'Lora', Georgia, serif;
+    font-size: 0.88rem; font-weight: 600;
+    border: none; cursor: pointer; border-radius: 4px;
+    padding: 7px 14px; transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--accent-gem); color: #fff;
+    box-shadow: 0 2px 12px rgba(232,93,117,0.3);
+  }
+  .btn-primary:hover { background: #f06a82; transform: translateY(-1px); }
+  .btn-secondary {
+    background: var(--bg-editor); color: var(--text-main);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-small { font-size: 0.8rem; padding: 5px 11px; }
+
+  /* Three-column layout */
+  .app-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr 380px;
+    height: calc(100vh - 68px);
+    overflow: hidden;
+  }
+
+  /* Left sidebar */
+  .sidebar {
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .sidebar-tab {
+    flex: 1; text-align: center; padding: 8px 6px;
+    font-family: 'Source Code Pro', monospace;
+    font-size: 0.7rem; font-weight: 600;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    cursor: pointer; color: var(--text-dim);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s; background: none; border-radius: 0;
+  }
+  .sidebar-tab:hover { color: var(--text-main); background: rgba(255,255,255,0.02); }
+  .sidebar-tab.active { color: var(--accent-gold); border-bottom-color: var(--accent-gold); }
+
+  .sidebar-tab-content { display: none; flex: 1; overflow-y: auto; }
+  .sidebar-tab-content.active { display: flex; flex-direction: column; }
+
+  .sidebar-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.78rem; font-weight: 700;
+    color: var(--accent-gold); letter-spacing: 2px;
+    text-transform: uppercase; padding: 12px 14px 8px;
+  }
+
+  .schema-table { padding: 6px 14px 10px; }
+  .schema-table-name {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 0.82rem; font-weight: 600;
+    color: var(--accent-gem); padding: 6px 0 4px;
+    cursor: pointer; display: flex; align-items: center; gap: 6px;
+  }
+  .schema-table-name:hover { color: #f06a82; }
+  .schema-table-name .icon { font-size: 0.75rem; }
+
+  .schema-cols { padding-left: 16px; font-size: 0.76rem; line-height: 1.7; display: none; }
+  .schema-cols.open { display: block; }
+  .col-entry { display: flex; gap: 5px; align-items: center; }
+  .col-name { color: var(--accent-gold-dim); font-family: 'Source Code Pro', monospace; font-size: 0.74rem; }
+  .col-type { color: var(--text-dim); font-size: 0.68rem; }
+  .col-pk { color: var(--accent-gem); font-size: 0.62rem; font-weight: 600; }
+
+  .data-preview-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.78rem; font-weight: 700;
+    color: var(--accent-gold); letter-spacing: 2px;
+    text-transform: uppercase; padding: 12px 14px 8px;
+  }
+  .row-count {
+    font-size: 0.65rem; color: var(--text-dim);
+    font-family: 'Source Code Pro', monospace; padding: 0 14px 8px;
+  }
+  .data-preview-wrap { flex: 1; overflow: auto; padding: 0 8px 8px; }
+
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; font-family: 'Source Code Pro', monospace; }
+  .preview-table th {
+    background: var(--accent-gem-dim); color: #fff;
+    padding: 4px 6px; font-size: 0.65rem; text-align: left;
+    position: sticky; top: 0; white-space: nowrap;
+  }
+  .preview-table td {
+    padding: 3px 6px; border-bottom: 1px solid var(--border);
+    white-space: nowrap; max-width: 100px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .preview-table tr:nth-child(even) { background: var(--table-stripe); }
+
+  .history-item {
+    padding: 6px 12px; font-family: 'Source Code Pro', monospace;
+    font-size: 0.72rem; color: var(--text-dim); cursor: pointer;
+    border-bottom: 1px solid var(--border); transition: background 0.15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .history-item:hover { background: var(--bg-editor); color: var(--text-main); }
+
+  /* Centre area */
+  .main-area { display: flex; flex-direction: column; overflow: hidden; }
+
+  .editor-section { padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .editor-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px; flex-wrap: wrap; gap: 6px;
+  }
+  .editor-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.78rem; font-weight: 700;
+    color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase;
+  }
+  .editor-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  #sql-editor {
+    width: 100%; min-height: 100px; max-height: 260px;
+    background: var(--bg-editor); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text-bright);
+    font-family: 'Source Code Pro', monospace;
+    font-size: 0.88rem; line-height: 1.6;
+    padding: 10px 12px; resize: vertical; outline: none; tab-size: 2;
+  }
+  #sql-editor:focus { border-color: var(--accent-gem-dim); box-shadow: 0 0 0 2px rgba(232,93,117,0.15); }
+  #sql-editor::placeholder { color: var(--text-dim); }
+
+  .shortcut-hint { font-size: 0.7rem; color: var(--text-dim); margin-top: 5px; }
+  kbd {
+    background: var(--bg-editor); border: 1px solid var(--border);
+    border-radius: 3px; padding: 1px 5px;
+    font-family: 'Source Code Pro', monospace; font-size: 0.7rem;
+  }
+
+  .results-section { flex: 1; overflow: auto; padding: 14px 18px; }
+
+  .results-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+  }
+  .results-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.78rem; font-weight: 700;
+    color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase;
+  }
+  .results-meta { font-size: 0.78rem; color: var(--text-dim); }
+
+  .results-table-wrap {
+    overflow-x: auto; border: 1px solid var(--border);
+    border-radius: 4px; margin-bottom: 14px;
+  }
+
+  table.results { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  table.results th {
+    background: var(--accent-gem-dim); color: #fff;
+    font-family: 'Source Code Pro', monospace;
+    font-size: 0.76rem; font-weight: 600;
+    padding: 7px 10px; text-align: left; white-space: nowrap;
+    position: sticky; top: 0;
+  }
+  table.results td {
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+    white-space: nowrap; max-width: 280px; overflow: hidden; text-overflow: ellipsis;
+  }
+  table.results tr:nth-child(even) { background: var(--table-stripe); }
+  table.results tr:hover { background: rgba(232,93,117,0.06); }
+
+  .message {
+    padding: 10px 14px; border-radius: 4px;
+    font-size: 0.8rem; line-height: 1.5; margin-bottom: 8px;
+    font-family: 'Source Code Pro', monospace;
+  }
+  .message.success { background: rgba(61,220,132,0.1); border: 1px solid rgba(61,220,132,0.25); color: var(--success); }
+  .message.error { background: rgba(231,76,60,0.1); border: 1px solid rgba(231,76,60,0.25); color: var(--error); }
+  .message.info { background: rgba(212,168,72,0.08); border: 1px solid rgba(212,168,72,0.2); color: var(--accent-gold); }
+
+  .welcome { text-align: center; padding: 40px 24px; color: var(--text-dim); }
+  .welcome h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem; color: var(--text-main); margin-bottom: 10px;
+  }
+  .welcome p { font-size: 0.9rem; margin-bottom: 7px; line-height: 1.5; }
+  .welcome code {
+    background: var(--bg-editor); padding: 2px 6px; border-radius: 3px;
+    font-family: 'Source Code Pro', monospace; font-size: 0.82rem; color: var(--accent-gold);
+  }
+
+  /* Examples dropdown */
+  .examples-dropdown { position: relative; display: inline-block; }
+  .examples-menu {
+    display: none; position: absolute; top: 100%; right: 0;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 4px; min-width: 360px; max-height: 400px;
+    overflow-y: auto; z-index: 100; box-shadow: var(--shadow); margin-top: 4px;
+  }
+  .examples-menu.open { display: block; }
+  .example-item {
+    padding: 8px 12px; cursor: pointer;
+    border-bottom: 1px solid var(--border); transition: background 0.15s;
+  }
+  .example-item:last-child { border-bottom: none; }
+  .example-item:hover { background: var(--bg-editor); }
+  .example-item .ex-label { font-size: 0.78rem; font-weight: 600; color: var(--accent-gold); margin-bottom: 2px; }
+  .example-item .ex-sql { font-family: 'Source Code Pro', monospace; font-size: 0.72rem; color: var(--text-dim); white-space: pre-wrap; }
+  .example-category {
+    padding: 6px 12px 3px;
+    font-family: 'Playfair Display', serif;
+    font-size: 0.68rem; font-weight: 700;
+    color: var(--accent-gem); letter-spacing: 1.5px;
+    text-transform: uppercase; background: var(--bg-dark);
+  }
+
+  /* Right panel: Investigation Clues */
+  .clues-panel {
+    background: var(--clue-bg);
+    border-left: 2px solid var(--border-gem);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .clues-header {
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #1a1220 0%, #14141c 100%);
+  }
+  .clues-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.95rem; font-weight: 700;
+    color: var(--accent-gem); letter-spacing: 1px;
+  }
+  .clues-header .clues-desc {
+    font-size: 0.75rem; color: var(--text-dim); margin-top: 4px; line-height: 1.4;
+  }
+  .clues-progress {
+    padding: 8px 16px; border-bottom: 1px solid var(--border);
+    font-size: 0.75rem; color: var(--text-dim);
+  }
+  .progress-bar {
+    height: 4px; background: var(--border); border-radius: 2px;
+    margin-top: 5px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-gem), var(--accent-emerald));
+    border-radius: 2px; transition: width 0.4s ease; width: 0%;
+  }
+
+  .clues-body { flex: 1; overflow-y: auto; padding: 0; }
+
+  .intro-card {
+    padding: 14px 16px; border-bottom: 2px solid var(--border-gem);
+    background: linear-gradient(135deg, rgba(232,93,117,0.06), transparent);
+    font-size: 0.82rem; line-height: 1.55; color: var(--text-dim);
+  }
+  .intro-card strong { color: var(--text-main); }
+
+  .clue-card {
+    padding: 12px 16px; border-bottom: 1px solid var(--border); transition: background 0.2s;
+  }
+  .clue-card:hover { background: rgba(232,93,117,0.04); }
+  .clue-card.solved { background: var(--solved-bg); }
+  .clue-card-header { display: flex; align-items: flex-start; gap: 8px; }
+  .clue-check {
+    width: 18px; height: 18px;
+    border: 2px solid var(--accent-gem-dim); border-radius: 3px;
+    flex-shrink: 0; margin-top: 2px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: transparent;
+    transition: all 0.2s; cursor: pointer;
+  }
+  .clue-card.solved .clue-check {
+    background: var(--accent-emerald); color: #fff; border-color: var(--accent-emerald);
+  }
+  .clue-gem-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+  .clue-content { flex: 1; }
+  .clue-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.85rem; font-weight: 700; color: var(--text-bright); margin-bottom: 3px;
+  }
+  .clue-room {
+    font-size: 0.68rem; color: var(--accent-sapphire);
+    font-family: 'Source Code Pro', monospace;
+    letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 5px;
+  }
+  .clue-evidence { font-size: 0.8rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 6px; }
+  .clue-task {
+    font-size: 0.78rem; color: var(--accent-gold); font-weight: 600;
+    line-height: 1.4; margin-bottom: 5px; padding: 5px 8px;
+    background: rgba(212,168,72,0.08);
+    border-left: 2px solid var(--accent-gold-dim);
+    border-radius: 0 3px 3px 0;
+  }
+
+  .answer-area { display: flex; gap: 4px; margin-top: 6px; }
+  .answer-input {
+    flex: 1; background: var(--bg-editor); border: 1px solid var(--border);
+    border-radius: 3px; color: var(--text-bright);
+    font-family: 'Source Code Pro', monospace; font-size: 0.72rem;
+    padding: 4px 7px; outline: none;
+  }
+  .answer-input:focus { border-color: var(--accent-gem-dim); }
+  .answer-input::placeholder { color: var(--text-dim); }
+  .btn-check-answer {
+    background: var(--accent-gem-dim); color: #fff;
+    font-size: 0.68rem; padding: 4px 8px; border-radius: 3px;
+    border: none; cursor: pointer; font-family: 'Source Code Pro', monospace;
+  }
+  .btn-check-answer:hover { background: var(--accent-gem); }
+  .answer-feedback { font-size: 0.7rem; margin-top: 3px; min-height: 16px; }
+  .answer-correct { color: var(--accent-emerald); }
+  .answer-wrong { color: var(--error); }
+
+  .clue-hint-toggle {
+    font-size: 0.72rem; color: var(--accent-gem-dim);
+    cursor: pointer; margin-top: 3px; display: inline-block;
+  }
+  .clue-hint-toggle:hover { color: var(--accent-gem); text-decoration: underline; }
+  .clue-hint { -webkit-user-select:none; user-select:none;
+    font-size: 0.74rem; color: var(--text-dim); margin-top: 4px;
+    padding: 5px 8px; background: rgba(232,93,117,0.06);
+    border-radius: 3px; display: none;
+    font-family: 'Source Code Pro', monospace; line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .clue-hint.visible { display: block; }
+  .clue-card.solved .clue-title { text-decoration: line-through; opacity: 0.6; }
+
+  .loading-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(14,14,18,0.97);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 1000; transition: opacity 0.5s;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .loading-text {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem; color: var(--accent-gem);
+    margin-top: 14px; letter-spacing: 2px;
+  }
+  .spinner {
+    width: 38px; height: 38px;
+    border: 3px solid var(--border); border-top-color: var(--accent-gem);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 1100px) {
+    .app-layout { grid-template-columns: 1fr; }
+    .sidebar { max-height: 180px; border-right: none; border-bottom: 1px solid var(--border); }
+    .clues-panel { max-height: 50vh; border-left: none; border-top: 2px solid var(--border-gem); }
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-dark); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+  /* Data modal */
+  .data-modal-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(8,6,12,0.92); z-index:2000; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+  .data-modal-overlay.open { display:flex; }
+  .data-modal { background:#14111e; border:1px solid #444; border-radius:8px; box-shadow:0 8px 60px rgba(0,0,0,0.7); padding:20px 24px 16px; position:relative; max-width:92vw; max-height:88vh; overflow:auto; min-width:400px; }
+  .data-modal-close { position:absolute; top:8px; right:12px; background:none; border:none; color:#6a6664; font-size:1.4rem; cursor:pointer; padding:4px 8px; border-radius:4px; }
+  .data-modal-close:hover { color:#fff; background:rgba(255,255,255,0.06); }
+  .data-modal-title { font-family:'Playfair Display',serif; font-size:1rem; font-weight:700; color:var(--text-bright); margin-bottom:4px; }
+  .data-modal-count { font-family:'Source Code Pro',monospace; font-size:0.72rem; color:var(--text-dim); margin-bottom:10px; }
+  .data-modal table { width:100%; border-collapse:collapse; font-size:0.8rem; font-family:'Source Code Pro',monospace; }
+  .data-modal table th { background:var(--border); color:#fff; padding:6px 10px; font-size:0.74rem; text-align:left; position:sticky; top:0; white-space:nowrap; }
+  .data-modal table td { padding:5px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  .data-modal table tr:nth-child(even) { background:rgba(255,255,255,0.015); }
+  .data-modal table tr:hover { background:rgba(255,255,255,0.03); }
+  .data-modal-hint { text-align:center; margin-top:8px; font-family:'Source Code Pro',monospace; font-size:0.64rem; color:#4a4640; }
+  .schema-eye { cursor:pointer; font-size:0.7rem; opacity:0.5; transition:opacity 0.15s; margin-left:auto; }
+  .schema-eye:hover { opacity:1; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">Opening the Case File...</div>
+</div>
+
+<header>
+  <div class="logo-area">
+    <div class="badge">&#x1F48E;</div>
+    <div>
+      <h1>The Stolen <span>Gemstones</span></h1>
+      <div class="subtitle">SQL Investigation</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a href="https://youtu.be/4LjqZepIghw" target="_blank" rel="noopener" class="btn-video btn-small" style="background:linear-gradient(135deg,#c03030,#e04040);color:#fff;border:1px solid #e06060;text-decoration:none;display:inline-flex;align-items:center;gap:4px;border-radius:4px;padding:5px 10px;font-family:'Lora',Georgia,serif;font-size:0.74rem;font-weight:600;cursor:pointer;">&#x25B6; Watch Intro</a>
+    <button class="btn-secondary btn-small" onclick="resetData()">&#x1F504; Reset Data</button>
+    <button class="btn-secondary btn-small" onclick="exportResults()">&#x1F4CB; Copy Results</button>
+  </div>
+</header>
+
+<div class="app-layout" id="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-tabs">
+      <div class="sidebar-tab active" onclick="switchSidebarTab('schema', this)">Schema</div>
+      <div class="sidebar-tab" onclick="switchSidebarTab('history', this)">History</div>
+    </div>
+    <div class="sidebar-tab-content active" id="tab-schema">
+      <div class="sidebar-title">&#x1F4C1; Tables <span style="font-size:0.58rem;color:var(--text-dim);font-family:'Source Code Pro',monospace;letter-spacing:0;">(click &#x1F441; to view data)</span></div>
+      <div id="schema-display" class="schema-table"></div>
+    </div>
+    <div class="sidebar-tab-content" id="tab-history">
+      <div class="sidebar-title">&#x1F550; Query History</div>
+      <div id="history-list"></div>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <div class="editor-section">
+      <div class="editor-toolbar">
+        <span class="editor-label">&#x1F58A; SQL Query</span>
+        <div class="editor-buttons">
+          <div class="examples-dropdown">
+            <button class="btn-secondary btn-small" onclick="toggleExamples()">&#x1F4CB; Examples &#x25BE;</button>
+            <div class="examples-menu" id="examples-menu"></div>
+          </div>
+          <button class="btn-secondary btn-small" onclick="clearEditor()">Clear</button>
+          <button class="btn-primary" onclick="executeQuery()">&#x25B6; Execute</button>
+        </div>
+      </div>
+      <textarea id="sql-editor" placeholder="Write your SQL query here to investigate the stolen gemstones..." spellcheck="false">SELECT * FROM suspects LIMIT 10;</textarea>
+      <div class="shortcut-hint">Press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to execute &middot; <kbd>Tab</kbd> for indent</div>
+    </div>
+    <div class="results-section" id="results-section">
+      <div class="welcome" id="welcome">
+        <h2>Welcome, Detective &#x1F48E;</h2>
+        <p>The database has been loaded with 120 suspects from the Gemstones Exposition.</p>
+        <div id="video-area" style="margin:12px auto 12px;text-align:center;">
+          <button onclick="playIntroVideo()" style="background:linear-gradient(135deg,#c03030,#e04040);color:#fff;border:1px solid #e06060;padding:10px 20px;border-radius:5px;font-family:'Lora',Georgia,serif;font-size:0.88rem;font-weight:600;cursor:pointer;">&#x25B6; Watch the scenario intro video</button>
+        </div>
+        <p>Use the clues on the right to identify each thief. Try <code>SELECT * FROM suspects LIMIT 10;</code></p>
+        <p style="margin-top:12px; font-size:0.82rem;">Explore the <strong>Schema</strong> tab to see all columns, or use the <strong>Examples</strong> dropdown for sample queries.</p>
+      </div>
+    </div>
+  </div>
+
+  <aside class="clues-panel">
+    <div class="clues-header">
+      <h2>&#x1F50D; Investigation Clues</h2>
+      <div class="clues-desc">Identify the 11 thieves using the evidence below. Write SQL queries to narrow down the suspects.</div>
+    </div>
+    <div class="clues-progress">
+      <span id="progress-text">0 / 11 gemstones solved</span>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+    <div class="clues-body" id="clues-body"></div>
+  </aside>
+</div>
+
+<div class="data-modal-overlay" id="data-modal" onclick="if(event.target===this)closeDataModal()">
+  <div class="data-modal">
+    <button class="data-modal-close" onclick="closeDataModal()">&times;</button>
+    <div class="data-modal-title" id="data-modal-title">Table</div>
+    <div class="data-modal-count" id="data-modal-count"></div>
+    <div id="data-modal-content"></div>
+    <div class="data-modal-hint">Press <kbd>Esc</kbd> to close</div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script>
+(function() {
+  "use strict";
+
+  let db = null;
+  let SQL = null;
+  let queryHistory = [];
+  let solvedGems = {};
+
+  const clues = [
+    {
+      id: "ruby", gem: "Ruby", icon: "\uD83D\uDD34", room: "Main Lounge",
+      evidence: "An intense red ruby was exposed in the main lounge. The robber broke the glass case, then broke the window and jumped outside. Footprints have been found below the broken window. The shoes are male shoes, size 10.5. They are not the type of shoes worn by staff as part of their uniform. So the first robber must be one of the guests.",
+      task: "Find all male guests with shoe size 10.5.",
+      hint: "SELECT * FROM suspects\nWHERE gender = 'Male'\n  AND Shoe_Size = 10.5\n  AND Guest = 'TRUE';",
+      answer: "Ian Carrot"
+    },
+    {
+      id: "sapphire", gem: "Blue Sapphire", icon: "\uD83D\uDD35", room: "Dining Room",
+      evidence: "The world's largest blue sapphire was stolen from the dining room. The robber hurt themselves breaking the glass case. Blood stains were found on the carpet. A handkerchief was found with blood stains and two embroidered initials: A.H.",
+      task: "Find anyone on the list with the initials A.H.",
+      hint: "SELECT * FROM suspects\nWHERE firstname LIKE 'A%'\n  AND lastname LIKE 'H%';",
+      answer: "Adrian Hazelnut"
+    },
+    {
+      id: "onyx", gem: "Onyx", icon: "\u26AB", room: "Billiard Room",
+      evidence: "A rare semi-translucent onyx was exposed in the billiard room. A long blond hair was found next to the stand, suggesting a female robber. The back door was open \u2014 this door uses a magnetic card reader and can only be opened by staff members from the security team.",
+      task: "Find a female staff member on the security team.",
+      hint: "SELECT * FROM suspects\nWHERE gender = 'Female'\n  AND Staff = 'TRUE'\n  AND Team = 'Security';",
+      answer: "Cindi Sepia"
+    },
+    {
+      id: "topaz", gem: "Clear Topaz", icon: "\uD83D\uDC9B", room: "Ballroom",
+      evidence: "A clear topaz was exposed in the centre of the ballroom. A candle from the main chandelier was found on the floor, suggesting the robber hit the chandelier while leaving in the dark. The robber must be at least 1.85m tall. A wine glass was found near the stand with red lipstick marks, indicating a female robber.",
+      task: "Find a female suspect who is at least 1.85m tall.",
+      hint: "SELECT * FROM suspects\nWHERE gender = 'Female'\n  AND height >= 1.85;",
+      answer: "Niki Flamingo"
+    },
+    {
+      id: "diamond", gem: "Diamond", icon: "\uD83D\uDC8E", room: "Library",
+      evidence: "The diamond was exposed in the library. A post-it note was found on the floor \u2014 it appears to have fallen from the robber's pocket or handbag. Handwritten symbols on the note are written using the Mandarin alphabet. We can deduce the robber may come from China, Taiwan or Singapore.",
+      task: "Find anyone from China, Taiwan or Singapore.",
+      hint: "SELECT * FROM suspects\nWHERE nationality IN ('China', 'Taiwan', 'Singapore');",
+      answer: "Edna Pearl"
+    },
+    {
+      id: "tanzanite", gem: "Tanzanite", icon: "\uD83D\uDFE3", room: "Small Lounge / Tearoom",
+      evidence: "On their way out, the robber caught their jacket on the door hatch, ripping off a piece of the jacket and inside pocket. A torn piece of a business card was found where part of a name reads: \"Mr Oli...\". The robber is a man whose first name or last name starts with \"OLI\". The jacket is not a staff uniform, so the robber must be a guest.",
+      task: "Find a male guest whose first or last name starts with 'Oli'.",
+      hint: "SELECT * FROM suspects\nWHERE gender = 'Male'\n  AND Guest = 'TRUE'\n  AND (firstname LIKE 'Oli%'\n    OR lastname LIKE 'Oli%');",
+      answer: "Oliver Brown"
+    },
+    {
+      id: "pink_sapphire", gem: "Pink Sapphire", icon: "\uD83E\uDE77", room: "Upstairs Landing",
+      evidence: "The robber fell down the stairs (guests heard a loud noise) and someone swearing in English. They dropped their Exposition information pack. Inside, a vegan menu page was found \u2014 only given to vegan guests. The robber is either American (USA), Canadian, English or Australian and is also vegan.",
+      task: "Find a vegan guest from USA, Canada, England or Australia.",
+      hint: "SELECT * FROM suspects\nWHERE vegan = 'TRUE'\n  AND Guest = 'TRUE'\n  AND nationality IN ('USA', 'Canada',\n    'England', 'Australia');",
+      answer: "Patrick Strawberry"
+    },
+    {
+      id: "quartz", gem: "Quartz", icon: "\uD83E\uDD0D", room: "Kitchen",
+      evidence: "A tray of Spanish tapas was on the kitchen table. The robber picked tapas with superior quality chorizo, suggesting they are neither vegetarian nor vegan. An empty pack of disposable tissues was found in the dustbin with a price tag of 8.5 kr (Danish Krones), indicating the robber is most likely Danish.",
+      task: "Find a Danish suspect who is neither vegetarian nor vegan.",
+      hint: "SELECT * FROM suspects\nWHERE nationality = 'Denmark'\n  AND vegetarian = 'FALSE'\n  AND vegan = 'FALSE';",
+      answer: "Luke Magenta"
+    },
+    {
+      id: "emerald", gem: "Emerald", icon: "\uD83D\uDC9A", room: "Study Room",
+      evidence: "The burglar forced the window open to escape. An earring in the shape of the Eiffel Tower was found \u2014 believed to belong to a French female guest. It is expensive jewellery, unlikely to be worn by staff at work.",
+      task: "Find a French female guest.",
+      hint: "SELECT * FROM suspects\nWHERE nationality = 'France'\n  AND gender = 'Female'\n  AND Guest = 'TRUE';",
+      answer: "Christine Yellow"
+    },
+    {
+      id: "amber", gem: "Amber", icon: "\uD83D\uDFE0", room: "Main Hall",
+      evidence: "A flower pot was knocked over and the robber walked through the soil, leaving a footprint. It was a woman's shoe, size between 6 and 7. The shoe brand is only sold in South American countries: Peru, Chile, Argentina, Brazil and Venezuela.",
+      task: "Find a female from a South American country with shoe size between 6 and 7.",
+      hint: "SELECT * FROM suspects\nWHERE gender = 'Female'\n  AND Shoe_Size >= 6\n  AND Shoe_Size <= 7\n  AND nationality IN ('Peru', 'Chile',\n    'Argentina', 'Brazil', 'Venezuela');",
+      answer: "Shayla Plum"
+    },
+    {
+      id: "peridot", gem: "Peridot", icon: "\uD83D\uDFE2", room: "Master Bedroom",
+      evidence: "Guests could smell a subtle scent of jasmine, an essence used in women's perfumes. In the fireplace, warm ashes of a partly-burned plane ticket were found, indicating a flight from Dublin Airport (Ireland). The robber is likely an Irish female guest.",
+      task: "Find a female guest from Ireland.",
+      hint: "SELECT * FROM suspects\nWHERE gender = 'Female'\n  AND nationality = 'Ireland'\n  AND Guest = 'TRUE';",
+      answer: "Krissie Ruby"
+    }
+  ];
+
+  const exampleQueries = [
+    { category: "Getting Started" },
+    { label: "View all suspects (first 20)", sql: "SELECT * FROM suspects\nLIMIT 20;" },
+    { label: "Count all suspects", sql: "SELECT COUNT(*) AS total_suspects\nFROM suspects;" },
+    { label: "View all column names", sql: "PRAGMA table_info(suspects);" },
+    { category: "Filtering with WHERE" },
+    { label: "All female suspects", sql: "SELECT * FROM suspects\nWHERE gender = 'Female';" },
+    { label: "All staff members", sql: "SELECT * FROM suspects\nWHERE Staff = 'TRUE';" },
+    { label: "All guests (not staff)", sql: "SELECT * FROM suspects\nWHERE Guest = 'TRUE';" },
+    { label: "Suspects from France", sql: "SELECT * FROM suspects\nWHERE nationality = 'France';" },
+    { label: "Tall suspects (height >= 1.85)", sql: "SELECT * FROM suspects\nWHERE height >= 1.85\nORDER BY height DESC;" },
+    { category: "Using AND / OR / IN" },
+    { label: "Male guests with shoe size 10.5", sql: "SELECT * FROM suspects\nWHERE gender = 'Male'\n  AND Shoe_Size = 10.5\n  AND Guest = 'TRUE';" },
+    { label: "Suspects from multiple countries", sql: "SELECT * FROM suspects\nWHERE nationality IN\n  ('France', 'Denmark', 'Ireland');" },
+    { label: "Vegan or vegetarian suspects", sql: "SELECT * FROM suspects\nWHERE vegan = 'TRUE'\n  OR vegetarian = 'TRUE';" },
+    { category: "Using LIKE" },
+    { label: "Names starting with 'Oli'", sql: "SELECT * FROM suspects\nWHERE firstname LIKE 'Oli%'\n  OR lastname LIKE 'Oli%';" },
+    { label: "Initials A.H.", sql: "SELECT * FROM suspects\nWHERE firstname LIKE 'A%'\n  AND lastname LIKE 'H%';" },
+    { category: "Sorting and Counting" },
+    { label: "Tallest suspects first", sql: "SELECT firstname, lastname, height\nFROM suspects\nORDER BY height DESC\nLIMIT 10;" },
+    { label: "Count by nationality", sql: "SELECT nationality, COUNT(*) AS total\nFROM suspects\nGROUP BY nationality\nORDER BY total DESC;" },
+    { label: "Count staff vs guests", sql: "SELECT\n  SUM(CASE WHEN Staff = 'TRUE'\n    THEN 1 ELSE 0 END) AS staff_count,\n  SUM(CASE WHEN Guest = 'TRUE'\n    THEN 1 ELSE 0 END) AS guest_count\nFROM suspects;" },
+    { category: "BETWEEN and DISTINCT" },
+    { label: "Shoe size between 6 and 7", sql: "SELECT * FROM suspects\nWHERE Shoe_Size BETWEEN 6 AND 7;" },
+    { label: "All nationalities", sql: "SELECT DISTINCT nationality\nFROM suspects\nORDER BY nationality;" },
+    { label: "All teams", sql: "SELECT DISTINCT Team\nFROM suspects\nWHERE Team IS NOT NULL\n  AND Team != '';" },
+  ];
+
+  const suspectCSV = "id,title,firstname,lastname,gender,nationality,phone,height,Shoe_Size,vegetarian,vegan,Staff,Guest,Team\n1,Ms,Elsa,Medallion,Female,Guyana,865-415-6654,1.71,8.5,TRUE,FALSE,FALSE,TRUE,\n2,Mrs,Diana,Butter,Female,Denmark,567-260-4903,1.69,8.5,FALSE,TRUE,FALSE,TRUE,\n3,Dr,Nick,Salmon,Male,Chile,336-447-9258,1.54,9,TRUE,TRUE,FALSE,TRUE,\n4,Dr,Adrian,Hazelnut,Male,Brazil,712-279-5597,1.78,8,TRUE,FALSE,FALSE,TRUE,\n5,Dr,Ursala,Mulberry,Female,Armenia,461-852-8662,1.82,11,FALSE,TRUE,FALSE,TRUE,\n6,Mr,Ian,Squash,Male,Denmark,831-409-6798,1.89,7.5,FALSE,TRUE,FALSE,TRUE,\n7,Mr,Forester,Blonde,Male,Poland,756-641-7194,1.63,6.5,FALSE,TRUE,TRUE,FALSE,Gardening\n8,Mr,Alexandre,Bone,Male,France,520-502-2903,1.85,1.5,TRUE,FALSE,FALSE,TRUE,\n9,Mr,Xavier,Wine,Male,Canada,941-405-9975,1.66,9,FALSE,FALSE,FALSE,TRUE,\n10,Mr,Patrick,Strawberry,Male,USA,330-584-0532,1.82,11,FALSE,TRUE,FALSE,TRUE,\n11,Dr,Micheil,Maroon,Male,Philippines,153-663-5809,1.58,8.5,FALSE,FALSE,FALSE,TRUE,\n12,Mr,Iain,Violet,Male,Iran,565-538-1824,1.66,11,FALSE,FALSE,FALSE,TRUE,\n13,Mr,Hayden,Bronze,Male,South Korea,583-184-0257,1.81,10,FALSE,TRUE,FALSE,TRUE,\n14,Mrs,Krissie,Ruby,Female,Ireland,815-989-2829,1.64,6,TRUE,TRUE,FALSE,TRUE,\n15,Dr,Luke,Magenta,Male,Denmark,516-622-5033,1.7,8.5,FALSE,FALSE,FALSE,TRUE,\n16,Mr,Oliver,Brown,Male,Peru,726-716-3410,1.68,10,TRUE,TRUE,FALSE,TRUE,\n17,Mr,Gabriello,Pineapple,Male,Peru,607-694-8652,1.89,10.5,FALSE,FALSE,TRUE,FALSE,Security\n18,Dr,Charlena,Eggnog,Female,Indonesia,908-166-8051,1.71,8.5,FALSE,TRUE,FALSE,TRUE,\n19,Ms,Izabel,Cyan,Female,Indonesia,108-813-9605,1.75,6.5,FALSE,FALSE,FALSE,TRUE,\n20,Dr,Shayla,Plum,Female,Chile,797-347-7377,1.68,6,TRUE,TRUE,FALSE,TRUE,\n21,Ms,Rheba,Purple,Female,Poland,539-165-9213,1.67,7.5,TRUE,FALSE,FALSE,TRUE,\n22,Mr,Lezley,Marine,Male,Brazil,919-208-7389,1.91,6,TRUE,FALSE,FALSE,TRUE,\n23,Mrs,Olivia,Frost,Female,France,823-436-0248,1.66,11,TRUE,FALSE,TRUE,FALSE,Reception\n24,Ms,Mandy,Currant,Female,Indonesia,513-683-7038,1.55,11,FALSE,FALSE,FALSE,TRUE,\n25,Mr,Garfield,Orange,Male,France,129-954-9082,1.7,11,TRUE,FALSE,FALSE,TRUE,\n26,Mrs,Adela,Ivory,Female,Indonesia,614-235-2515,1.7,9.5,FALSE,TRUE,FALSE,TRUE,\n27,Mrs,Hayley,Aubergine,Female,Thailand,647-187-8808,1.74,7.5,FALSE,TRUE,FALSE,TRUE,\n28,Rev,Fairleigh,Butterscotch,Male,Russia,431-725-2050,1.95,9.5,TRUE,FALSE,FALSE,TRUE,\n29,Mr,Lauritz,Brick,Male,Australia,420-687-0473,1.69,10,TRUE,FALSE,TRUE,FALSE,Gardening\n30,Mr,Olivier,Merlot,Male,Sweden,600-708-7058,1.76,6,FALSE,FALSE,TRUE,FALSE,Gardening\n31,Ms,Fina,Dijon,Female,France,493-125-8408,1.57,11,TRUE,TRUE,TRUE,FALSE,Reception\n32,Rev,Pierce,Coral,Male,Italy,824-993-4934,1.79,6,FALSE,TRUE,FALSE,TRUE,\n33,Mr,Giffy,Rust,Male,Serbia,383-627-0670,1.7,11,FALSE,TRUE,FALSE,TRUE,\n34,Rev,Pietro,Black,Male,Nigeria,902-381-1553,1.84,9.5,FALSE,FALSE,FALSE,TRUE,\n35,Mrs,Manya,Candy,Female,Uruguay,604-493-6751,1.59,7.5,TRUE,FALSE,FALSE,TRUE,\n36,Rev,Gennie,Tangerine,Female,Russia,801-512-9705,1.79,11,TRUE,TRUE,FALSE,TRUE,\n37,Mr,Hoebart,Honey,Male,Russia,408-337-1552,1.82,6,FALSE,FALSE,FALSE,TRUE,\n38,Rev,Emmaline,Dandelion,Female,Mexico,921-431-7623,1.58,10,TRUE,FALSE,FALSE,TRUE,\n39,Mr,Trevor,Raisin,Male,Indonesia,265-993-9554,1.84,6,TRUE,FALSE,TRUE,FALSE,Reception\n40,Ms,Ros,Emerald,Female,England,723-966-9304,1.72,10.5,TRUE,FALSE,FALSE,TRUE,\n41,Mr,Nikolas,Rouge,Male,Cuba,709-713-7195,1.97,9.5,TRUE,FALSE,TRUE,FALSE,Security\n42,Rev,Berkley,Macaroon,Male,Canada,519-613-7467,1.66,11,FALSE,FALSE,FALSE,TRUE,\n43,Mrs,Casey,Olive,Female,Peru,915-189-8825,1.65,11,FALSE,TRUE,FALSE,TRUE,\n44,Mr,Gian,Cider,Male,Philippines,494-177-4892,1.68,6,FALSE,FALSE,TRUE,FALSE,Security\n45,Mr,Stefan,Iris,Male,Brazil,884-827-8684,1.86,8,FALSE,FALSE,FALSE,TRUE,\n46,Dr,Alano,Linen,Male,Mexico,696-401-1825,1.55,9,TRUE,FALSE,FALSE,TRUE,\n47,Mr,Archibaldo,Rice,Male,Czech Republic,677-351-6002,1.66,10,FALSE,FALSE,TRUE,FALSE,Security\n48,Ms,Edna,Pearl,Female,Taiwan,544-958-2518,1.76,8,TRUE,TRUE,FALSE,TRUE,\n49,Mr,Ahmad,Coconut,Male,France,221-743-5296,1.68,11,FALSE,TRUE,FALSE,TRUE,\n50,Dr,Maria,Green,Female,Philippines,400-408-7652,1.79,8.5,TRUE,FALSE,FALSE,TRUE,\n51,Mrs,Angela,Porcelain,Female,Poland,217-428-2896,1.66,8.5,TRUE,FALSE,FALSE,TRUE,\n52,Mr,Egbert,Snow,Male,Cuba,550-218-9357,1.69,8,FALSE,FALSE,FALSE,TRUE,\n53,Mr,Isidro,Silver,Male,Uruguay,784-409-9528,1.83,11,TRUE,FALSE,FALSE,TRUE,\n54,Ms,Davine,Gold,Female,Poland,889-622-8838,1.74,7,FALSE,FALSE,FALSE,TRUE,\n55,Mr,Christie,Sand,Male,Spain,566-205-3053,1.77,6,FALSE,FALSE,FALSE,TRUE,\n56,Rev,Adrian,Cream,Male,Philippines,651-651-8780,1.88,9.5,TRUE,FALSE,FALSE,TRUE,\n57,Dr,Sigmund,Grape,Male,Thailand,556-181-1593,1.76,7.5,FALSE,FALSE,FALSE,TRUE,\n58,Ms,Ericha,Fire,Female,Japan,849-343-5035,1.82,8.5,FALSE,TRUE,TRUE,FALSE,Reception\n59,Mrs,Cindi,Sepia,Female,Russia,599-520-2270,1.57,7.5,TRUE,TRUE,TRUE,FALSE,Security\n60,Mrs,Christabella,Cookie,Female,Ukraine,224-316-0500,1.71,8.5,FALSE,TRUE,FALSE,TRUE,\n61,Mrs,Adrianne,Eggshell,Female,England,823-701-5322,1.7,7.5,FALSE,FALSE,FALSE,TRUE,\n62,Mr,Barth,Tan,Male,Ireland,540-681-7388,1.73,8.5,TRUE,FALSE,FALSE,TRUE,\n63,Rev,Laurens,Wine,Male,Denmark,878-828-1337,1.65,8,TRUE,FALSE,FALSE,TRUE,\n64,Mr,Herrick,Clay,Male,Philippines,954-724-4248,1.96,7.5,FALSE,FALSE,TRUE,FALSE,Security\n65,Mr,Ian,Carrot,Male,USA,910-709-2378,1.96,10.5,TRUE,FALSE,FALSE,TRUE,\n66,Mrs,Lucita,Blood,Female,Philippines,358-299-8269,1.54,10.5,TRUE,FALSE,FALSE,TRUE,\n67,Mr,Colan,Buttermilk,Male,France,870-857-3579,1.95,11,FALSE,TRUE,TRUE,FALSE,Gardening\n68,Rev,Sherilyn,Magenta,Female,Poland,116-706-7937,1.77,6.5,TRUE,FALSE,FALSE,TRUE,\n69,Ms,Elberta,Corn,Female,USA,312-563-2059,1.7,7,FALSE,FALSE,FALSE,TRUE,\n70,Rev,Jolynn,Rose,Female,Spain,663-997-1751,1.8,9.5,TRUE,TRUE,FALSE,TRUE,\n71,Dr,Man,Sangria,Male,Jordan,996-697-5394,1.85,11,FALSE,TRUE,FALSE,TRUE,\n72,Mrs,Jessi,Red,Female,Brazil,861-690-0078,1.74,7.5,TRUE,FALSE,FALSE,TRUE,\n73,Mrs,Pierrette,Peach,Female,Japan,131-732-7557,1.56,6,FALSE,TRUE,FALSE,TRUE,\n74,Mrs,Lorelei,Mahogany,Female,Indonesia,709-762-7480,1.8,10,FALSE,TRUE,FALSE,TRUE,\n75,Mr,Ansel,Parchment,Male,Italy,674-634-9836,1.61,8,FALSE,TRUE,FALSE,TRUE,\n76,Mr,Eddy,White,Male,Portugal,253-468-6592,1.65,10.5,FALSE,FALSE,TRUE,FALSE,Security\n77,Mr,Glyn,Tiger,Male,Czech Republic,619-467-6888,1.92,6.5,FALSE,TRUE,FALSE,TRUE,\n78,Mrs,Christine,Yellow,Female,France,275-929-4674,1.84,7.5,FALSE,TRUE,FALSE,TRUE,\n79,Ms,Devon,Flaxen,Female,Sweden,931-866-0431,1.64,9.5,FALSE,FALSE,TRUE,FALSE,Gardening\n80,Dr,Hamilton,Fire,Male,Ireland,898-682-6391,1.82,8,TRUE,FALSE,FALSE,TRUE,\n81,Mrs,Jolie,Cherry,Female,South Korea,992-100-8665,1.66,9,FALSE,TRUE,FALSE,TRUE,\n82,Mrs,Stepha,Heather,Female,Ethiopia,169-629-0520,1.76,6.5,TRUE,FALSE,FALSE,TRUE,\n83,Mr,Theodor,Amethyst,Male,South Afirca,898-881-0612,1.69,6.5,TRUE,TRUE,FALSE,TRUE,\n84,Mrs,Julietta,Garnet,Female,USA,332-177-9243,1.77,7,TRUE,FALSE,FALSE,TRUE,\n85,Dr,Niki,Flamingo,Female,Costa Rica,104-494-0470,1.86,7.5,FALSE,FALSE,FALSE,TRUE,\n86,Mr,Bradford,Hazelwood,Male,New Zealand,439-724-6411,1.73,8,TRUE,TRUE,FALSE,TRUE,\n87,Mr,Jake,Marmalade,Male,Philippines,151-165-9498,1.82,7.5,TRUE,FALSE,TRUE,FALSE,Security\n88,Rev,Manda,Berry,Female,Canada,533-969-6138,1.8,6,FALSE,FALSE,FALSE,TRUE,\n89,Mrs,Kimberlyn,Crimson,Female,Poland,824-392-9552,1.71,10,FALSE,TRUE,FALSE,TRUE,\n90,Ms,Aeriela,Cotton,Female,Chile,900-485-5906,1.77,8.5,FALSE,TRUE,TRUE,FALSE,Reception\n91,Mrs,Gilbertine,Ginger,Female,Algeria,632-451-5278,1.8,9.5,FALSE,TRUE,FALSE,TRUE,\n92,Ms,Rozanna,Mauve,Female,South Africa,271-858-5171,1.78,11,FALSE,FALSE,FALSE,TRUE,\n93,Mr,Dante,Canary,Male,Pakistan,278-843-2296,1.87,6.5,FALSE,FALSE,FALSE,TRUE,\n94,Mr,Simon,Blue,Male,Venezuela,722-882-3491,1.65,6.5,FALSE,FALSE,TRUE,FALSE,Gardening\n95,Mr,Derrek,Daffodil,Male,USA,405-202-2342,1.86,11,TRUE,FALSE,FALSE,TRUE,\n96,Ms,Dominique,Lemon,Female,Finland,142-679-3591,1.56,9.5,FALSE,TRUE,FALSE,TRUE,\n97,Mrs,Gerty,Marigold,Female,Peru,985-385-1680,1.63,7.5,FALSE,FALSE,FALSE,TRUE,\n98,Mr,Benyamin,Beige,Male,Oman,235-318-8639,1.89,11,FALSE,FALSE,FALSE,TRUE,\n99,Mr,James,Amber,Male,Denmark,131-839-8967,1.95,7.5,TRUE,FALSE,FALSE,TRUE,\n100,Mr,Randy,Rosewood,Male,Kazakhstan,991-189-3890,1.94,8.5,FALSE,FALSE,FALSE,TRUE,\n101,Ms,Natasha,Fuchsia,Female,Scotland,721-617-8584,1.72,6,FALSE,TRUE,TRUE,FALSE,Gardening\n102,Mrs,Mireille,Rose,Female,Tanzania,381-494-1530,1.62,10.5,TRUE,TRUE,FALSE,TRUE,\n103,Mrs,Ulla,Orchid,Female,Russia,559-257-7026,1.62,11,TRUE,FALSE,FALSE,TRUE,\n104,Mr,Carr,Granola,Male,Mongolia,926-324-6147,1.79,7,FALSE,FALSE,FALSE,TRUE,\n105,Mr,Aloysius,Daisy,Male,Croatia,501-843-4169,1.96,7,TRUE,TRUE,FALSE,TRUE,\n106,Dr,Jordan,Jam,Male,Armenia,261-811-8755,1.89,8.5,FALSE,FALSE,FALSE,TRUE,\n107,Ms,Mirabel,Pink,Female,Germany,549-457-7706,1.65,9,TRUE,TRUE,FALSE,TRUE,\n108,Mrs,Minnnie,Lipstick,Female,Denmark,492-782-6367,1.52,6,TRUE,TRUE,FALSE,TRUE,\n109,Mrs,Ebony,Mustard,Female,Bulgaria,665-275-9100,1.84,7.5,TRUE,TRUE,FALSE,TRUE,\n110,Rev,Henrie,Apricot,Female,Denmark,985-429-3957,1.69,9.5,FALSE,TRUE,FALSE,TRUE,\n111,Mr,Jaye,Sandstone,Male,Brazil,938-498-1581,1.64,8.5,TRUE,FALSE,FALSE,TRUE,\n112,Mr,Silvan,Sangria,Male,Mexico,986-866-7920,1.72,8,TRUE,TRUE,FALSE,TRUE,\n113,Mr,Alvie,Powder,Male,Chile,241-389-9770,1.78,6.5,FALSE,FALSE,FALSE,TRUE,\n114,Mrs,Sal,Lavender,Female,Russia,126-324-7395,1.83,10.5,TRUE,TRUE,FALSE,TRUE,\n115,Mrs,Fiorenze,Honey,Female,USA,362-823-3905,1.81,7.5,FALSE,FALSE,FALSE,TRUE,\n116,Dr,Leticia,Apple,Female,Indonesia,548-790-5300,1.53,8,TRUE,TRUE,FALSE,TRUE,\n117,Mrs,Clotilda,Sandcastle,Female,Sweden,636-361-6148,1.57,7,TRUE,FALSE,FALSE,TRUE,\n118,Dr,Kynthia,Scarlet,Female,Indonesia,251-867-5633,1.79,9.5,TRUE,TRUE,FALSE,TRUE,\n119,Mrs,Aeriell,Salt,Female,Portugal,559-315-2326,1.58,7,TRUE,TRUE,FALSE,TRUE,\n120,Mr,Sherwynd,Lilac,Male,Japan,146-397-6944,1.78,6.5,FALSE,FALSE,FALSE,TRUE,";
+
+  function loadDatabase() {
+    if (db) db.close();
+    db = new SQL.Database();
+
+    const lines = suspectCSV.trim().split("\n");
+
+    db.run("CREATE TABLE suspects (\n      id INTEGER PRIMARY KEY,\n      title TEXT,\n      firstname TEXT,\n      lastname TEXT,\n      gender TEXT,\n      nationality TEXT,\n      phone TEXT,\n      height REAL,\n      Shoe_Size REAL,\n      vegetarian TEXT,\n      vegan TEXT,\n      Staff TEXT,\n      Guest TEXT,\n      Team TEXT\n    );");
+
+    const stmt = db.prepare("INSERT INTO suspects VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+    for (let i = 1; i < lines.length; i++) {
+      const vals = lines[i].split(",");
+      if (vals.length < 13) continue;
+      stmt.run([
+        parseInt(vals[0]), vals[1], vals[2], vals[3], vals[4], vals[5], vals[6],
+        parseFloat(vals[7]), parseFloat(vals[8]),
+        vals[9], vals[10], vals[11], vals[12], vals[13] || ""
+      ]);
+    }
+    stmt.free();
+    refreshSchema();
+   
+  }
+
+  function refreshSchema() {
+    const el = document.getElementById("schema-display");
+    if (!db) { el.innerHTML = '<div style="padding:12px;color:var(--text-dim);font-size:0.82rem;">No database.</div>'; return; }
+    let tables = [];
+    try {
+      const r = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;");
+      if (r.length > 0) tables = r[0].values.map(function(row) { return row[0]; });
+    } catch (e) {}
+    let html = "";
+    tables.forEach(function(tbl) {
+      html += '<div class="schema-table-name" onclick="toggleSchemaCol(\'' + escapeAttr(tbl) + '\')">' +
+        '<span class="icon">&#x1F4C4;</span> ' + escapeHtml(tbl) +
+        '<span class="schema-eye" onclick="event.stopPropagation();showTableData(\'' + escapeAttr(tbl) + '\')" title="View data">&#x1F441;</span></div>';
+      html += '<div class="schema-cols" id="scols-' + escapeAttr(tbl) + '">';
+      try {
+        const cols = db.exec("PRAGMA table_info('" + tbl + "');");
+        if (cols.length > 0) {
+          cols[0].values.forEach(function(col) {
+            html += '<div class="col-entry"><span class="col-name">' + escapeHtml(col[1]) + '</span><span class="col-type">' + escapeHtml(col[2] || "TEXT") + '</span>' + (col[5] === 1 ? '<span class="col-pk">PK</span>' : '') + '</div>';
+          });
+        }
+      } catch (e) {}
+      html += '</div>';
+    });
+    el.innerHTML = html || '<div style="padding:12px;color:var(--text-dim);font-size:0.82rem;">No tables.</div>';
+    // Auto-open first
+    if (tables.length > 0) {
+      const first = document.getElementById("scols-" + tables[0]);
+      if (first) first.classList.add("open");
+    }
+  }
+
+  window.toggleSchemaCol = function(tbl) {
+    const el = document.getElementById("scols-" + tbl);
+    if (el) el.classList.toggle("open");
+  };
+
+  function showTableData(tbl) {
+    if (!db) return;
+    try {
+      const cr = db.exec("SELECT COUNT(*) FROM [" + tbl + "];");
+      const total = cr[0].values[0][0];
+      const res = db.exec("SELECT * FROM [" + tbl + "];");
+      document.getElementById("data-modal-title").textContent = tbl;
+      document.getElementById("data-modal-count").textContent = total + " row" + (total !== 1 ? "s" : "");
+      if (res.length === 0 || res[0].values.length === 0) {
+        document.getElementById("data-modal-content").innerHTML = '<div style="padding:12px;color:var(--text-dim);">Table is empty.</div>';
+      } else {
+        let html = '<div style="overflow-x:auto;"><table><thead><tr>';
+        res[0].columns.forEach(function(c) { html += '<th>' + escapeHtml(c) + '</th>'; });
+        html += '</tr></thead><tbody>';
+        res[0].values.forEach(function(row) {
+          html += '<tr>';
+          row.forEach(function(cell) { html += '<td>' + (cell === null ? '<em style="color:var(--text-dim);">NULL</em>' : escapeHtml(String(cell))) + '</td>'; });
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        document.getElementById("data-modal-content").innerHTML = html;
+      }
+      document.getElementById("data-modal").classList.add("open");
+    } catch (e) {
+      document.getElementById("data-modal-content").innerHTML = '<div style="padding:12px;color:var(--error);">' + escapeHtml(e.message) + '</div>';
+      document.getElementById("data-modal").classList.add("open");
+    }
+  }
+
+  function closeDataModal() { document.getElementById("data-modal").classList.remove("open"); }
+
+  window.switchSidebarTab = function(tabId, btn) {
+    document.querySelectorAll(".sidebar-tab").forEach(function(t) { t.classList.remove("active"); });
+    document.querySelectorAll(".sidebar-tab-content").forEach(function(c) { c.classList.remove("active"); });
+    btn.classList.add("active");
+    document.getElementById("tab-" + tabId).classList.add("active");
+  };
+
+  function executeQuery() {
+    const editor = document.getElementById("sql-editor");
+    const sql = editor.value.trim();
+    if (!sql) return;
+    const resultsSection = document.getElementById("results-section");
+    const welcome = document.getElementById("welcome");
+    if (welcome) welcome.style.display = "none";
+
+    if (queryHistory.length === 0 || queryHistory[queryHistory.length - 1] !== sql) {
+      queryHistory.push(sql);
+      if (queryHistory.length > 50) queryHistory.shift();
+      refreshHistory();
+    }
+
+    try {
+      const startTime = performance.now();
+      const results = db.exec(sql);
+      const elapsed = (performance.now() - startTime).toFixed(1);
+      const changes = db.getRowsModified();
+      let html = "";
+
+      if (results.length === 0 && changes > 0) {
+        html = '<div class="message success">Query executed successfully. ' + changes + ' row(s) affected. (' + elapsed + 'ms)</div>';
+      } else if (results.length === 0) {
+        html = '<div class="message success">Query executed successfully. No results returned. (' + elapsed + 'ms)</div>';
+      }
+
+      results.forEach(function(result, idx) {
+        const rowCount = result.values.length;
+        html += '<div class="results-header"><span class="results-label">Results' + (results.length > 1 ? ' (' + (idx + 1) + ')' : '') + '</span><span class="results-meta">' + rowCount + ' row' + (rowCount !== 1 ? 's' : '') + ' &middot; ' + elapsed + 'ms</span></div>';
+        html += '<div class="results-table-wrap"><table class="results"><thead><tr>';
+        result.columns.forEach(function(col) { html += '<th>' + escapeHtml(col) + '</th>'; });
+        html += '</tr></thead><tbody>';
+        result.values.forEach(function(row) {
+          html += '<tr>';
+          row.forEach(function(cell) {
+            const display = (cell === null) ? '<em style="color:var(--text-dim)">NULL</em>' : escapeHtml(String(cell));
+            html += '<td>' + display + '</td>';
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+      });
+
+      resultsSection.innerHTML = html;
+     
+    } catch (err) {
+      resultsSection.innerHTML = '<div class="message error">Error: ' + escapeHtml(err.message) + '</div>';
+    }
+  }
+
+  function refreshHistory() {
+    const el = document.getElementById("history-list");
+    if (queryHistory.length === 0) {
+      el.innerHTML = '<div style="padding:14px;color:var(--text-dim);font-size:0.8rem;font-style:italic;">No queries yet.</div>';
+      return;
+    }
+    let html = "";
+    for (let i = queryHistory.length - 1; i >= 0; i--) {
+      html += '<div class="history-item" onclick="loadFromHistory(' + i + ')" title="' + escapeAttr(queryHistory[i]) + '">' + escapeHtml(queryHistory[i].replace(/\n/g, " ")) + '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  window.loadFromHistory = function(idx) {
+    document.getElementById("sql-editor").value = queryHistory[idx];
+  };
+
+  function buildCluesPanel() {
+    const body = document.getElementById("clues-body");
+    let html = '<div class="intro-card"><strong>The Scene:</strong> On July 12th, 100 prestigious guests attended the Precious Gemstones Exposition at the Royal Castle, England. At 10:12pm, a power cut left all guests in the dark for five minutes. When the power returned, <strong>twelve precious gemstones</strong> had vanished from twelve different rooms. Each was stolen by a different robber &mdash; a carefully planned team operation. The guests have collected evidence. <strong>Can you identify the culprits?</strong></div>';
+    clues.forEach(function(clue) {
+      html += '<div class="clue-card" id="clue-' + clue.id + '">' +
+        '<div class="clue-card-header">' +
+        '<div class="clue-check" onclick="event.stopPropagation(); toggleSolved(\'' + clue.id + '\')">&#x2713;</div>' +
+        '<span class="clue-gem-icon">' + clue.icon + '</span>' +
+        '<div class="clue-content">' +
+        '<div class="clue-title">' + escapeHtml(clue.gem) + '</div>' +
+        '<div class="clue-room">' + escapeHtml(clue.room) + '</div>' +
+        '</div></div>' +
+        '<div class="clue-evidence">' + escapeHtml(clue.evidence) + '</div>' +
+        '<div class="clue-task">' + escapeHtml(clue.task) + '</div>' +
+        '<div class="answer-area">' +
+        '<input class="answer-input" id="answer-' + clue.id + '" placeholder="Enter suspect name..." onkeydown="if(event.key===\'Enter\')checkAnswer(\'' + clue.id + '\')">' +
+        '<button class="btn-check-answer" onclick="checkAnswer(\'' + clue.id + '\')">Check</button>' +
+        '</div>' +
+        '<div class="answer-feedback" id="feedback-' + clue.id + '"></div>' +
+        '<div class="clue-hint-toggle" onclick="event.stopPropagation(); toggleClueHint(\'' + clue.id + '\')">&#x1F4A1; Show SQL hint</div>' +
+        '<div class="clue-hint" id="hint-' + clue.id + '">' + escapeHtml(clue.hint) + '</div>' +
+        '</div>';
+    });
+    body.innerHTML = html;
+  }
+
+  window.toggleSolved = function(id) {
+    solvedGems[id] = !solvedGems[id];
+    const card = document.getElementById("clue-" + id);
+    if (solvedGems[id]) card.classList.add("solved");
+    else card.classList.remove("solved");
+    updateProgress();
+  };
+
+  window.toggleClueHint = function(id) {
+    const hint = document.getElementById("hint-" + id);
+    hint.classList.toggle("visible");
+    const toggle = hint.previousElementSibling;
+    toggle.textContent = hint.classList.contains("visible") ? "\uD83D\uDCA1 Hide SQL hint" : "\uD83D\uDCA1 Show SQL hint";
+  };
+
+  window.checkAnswer = function(id) {
+    const input = document.getElementById("answer-" + id);
+    const feedback = document.getElementById("feedback-" + id);
+    const clue = clues.find(function(c) { return c.id === id; });
+    if (!clue) return;
+    const userAnswer = input.value.trim().toLowerCase();
+    const correctAnswer = clue.answer.toLowerCase();
+    if (!userAnswer) { feedback.innerHTML = '<span class="answer-wrong">Please enter a name.</span>'; return; }
+    const correctParts = correctAnswer.split(" ");
+    const isCorrect = userAnswer === correctAnswer ||
+      userAnswer === correctParts[0] + " " + correctParts[1] ||
+      userAnswer === correctParts[1] ||
+      (correctAnswer.indexOf(userAnswer) !== -1 && userAnswer.length >= 4);
+    if (isCorrect) {
+      feedback.innerHTML = '<span class="answer-correct">&#x2713; Correct! The culprit is ' + escapeHtml(clue.answer) + '.</span>';
+      solvedGems[id] = true;
+      document.getElementById("clue-" + id).classList.add("solved");
+      updateProgress();
+    } else {
+      feedback.innerHTML = '<span class="answer-wrong">&#x2717; Not quite. Keep investigating!</span>';
+    }
+  };
+
+  function updateProgress() {
+    const total = clues.length;
+    const done = Object.keys(solvedGems).filter(function(k) { return solvedGems[k]; }).length;
+    document.getElementById("progress-text").textContent = done + " / " + total + " gemstones solved";
+    document.getElementById("progress-fill").style.width = ((done / total) * 100) + "%";
+  }
+
+  function buildExamplesMenu() {
+    const menu = document.getElementById("examples-menu");
+    let html = "";
+    exampleQueries.forEach(function(item) {
+      if (item.category) {
+        html += '<div class="example-category">' + escapeHtml(item.category) + '</div>';
+      } else {
+        html += '<div class="example-item" onclick="loadExample(this)" data-sql="' + escapeAttr(item.sql) + '"><div class="ex-label">' + escapeHtml(item.label) + '</div><div class="ex-sql">' + escapeHtml(item.sql) + '</div></div>';
+      }
+    });
+    menu.innerHTML = html;
+  }
+
+  window.loadExample = function(el) {
+    document.getElementById("sql-editor").value = el.getAttribute("data-sql");
+    document.getElementById("examples-menu").classList.remove("open");
+  };
+
+  function toggleExamples() { document.getElementById("examples-menu").classList.toggle("open"); }
+
+  document.addEventListener("click", function(e) {
+    const dd = document.querySelector(".examples-dropdown");
+    if (dd && !dd.contains(e.target)) { document.getElementById("examples-menu").classList.remove("open"); }
+  });
+
+  function clearEditor() {
+    document.getElementById("sql-editor").value = "";
+    document.getElementById("sql-editor").focus();
+  }
+
+  function resetData() {
+    solvedGems = {};
+    queryHistory = [];
+    loadDatabase();
+    buildCluesPanel();
+    updateProgress();
+    refreshHistory();
+    document.getElementById("results-section").innerHTML =
+      '<div class="welcome" id="welcome"><h2>Welcome, Detective &#x1F48E;</h2><p>The database has been reloaded with 120 suspects.</p><p>Use the clues on the right to identify each thief. Try <code>SELECT * FROM suspects LIMIT 10;</code></p></div>';
+  }
+
+  function exportResults() {
+    const section = document.getElementById("results-section");
+    const table = section.querySelector("table.results");
+    if (!table) {
+      const sql = document.getElementById("sql-editor").value;
+      if (sql) { navigator.clipboard.writeText(sql).then(function() { alert("SQL query copied to clipboard."); }); }
+      return;
+    }
+    let text = "";
+    const rows = table.querySelectorAll("tr");
+    rows.forEach(function(row) {
+      const cells = row.querySelectorAll("th, td");
+      const rowData = [];
+      cells.forEach(function(cell) { rowData.push(cell.textContent); });
+      text += rowData.join("\t") + "\n";
+    });
+    navigator.clipboard.writeText(text).then(function() {
+      alert("Results copied to clipboard as tab-separated values.");
+    }).catch(function() {
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta);
+      alert("Results copied to clipboard.");
+    });
+  }
+
+  document.getElementById("sql-editor").addEventListener("keydown", function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); executeQuery(); }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const start = this.selectionStart;
+      const end = this.selectionEnd;
+      this.value = this.value.substring(0, start) + "  " + this.value.substring(end);
+      this.selectionStart = this.selectionEnd = start + 2;
+    }
+  });
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+  function escapeAttr(str) {
+    return str.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function initSqlJs() {
+    return initSqlJs.promise || (initSqlJs.promise = window.initSqlJs({
+      locateFile: function(file) { return "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/" + file; }
+    }));
+  }
+
+  initSqlJs().then(function(sqlLib) {
+    SQL = sqlLib;
+    loadDatabase();
+    buildExamplesMenu();
+    buildCluesPanel();
+    updateProgress();
+    refreshHistory();
+    document.getElementById("loading").classList.add("hidden");
+  }).catch(function(err) {
+    document.getElementById("loading").innerHTML = '<div class="message error">Failed to load SQL engine: ' + err.message + '</div>';
+  });
+
+  // Esc to close data modal
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") {
+      const dm = document.getElementById("data-modal");
+      if (dm && dm.classList.contains("open")) { closeDataModal(); }
+    }
+  });
+
+  function playIntroVideo() {
+    window.open('https://youtu.be/4LjqZepIghw', '_blank');
+  }
+
+  window.executeQuery = executeQuery;
+  window.clearEditor = clearEditor;
+  window.resetData = resetData;
+  window.exportResults = exportResults;
+  window.toggleExamples = toggleExamples;
+  window.showTableData = showTableData;
+  window.closeDataModal = closeDataModal;
+  window.playIntroVideo = playIntroVideo;
+})();
+</script>
+<script>
+document.addEventListener("copy", function(e) {
+  var s = window.getSelection();
+  if (!s.anchorNode) return;
+  var el = s.anchorNode.parentElement;
+  while (el) {
+    if (el.classList && (el.classList.contains("task-hint") || el.classList.contains("clue-hint"))) {
+      e.preventDefault();
+      e.clipboardData.setData("text/plain", "Nice try! Type the SQL yourself for practice.");
+      return;
+    }
+    el = el.parentElement;
+  }
+});
+</script>
+</body>
+</html>
