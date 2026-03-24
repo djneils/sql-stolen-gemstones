@@ -33,3 +33,9 @@ Browser-based, runs entirely client-side using SQL.js (SQLite in the browser). N
 ## Topics / Level
 
 **KS4 / GCSE Computing** — intermediate to advanced SQL with a narrative investigation format
+
+---
+
+## License
+
+Copyright © Neil Southin. Free for personal use. Schools, colleges, and organisations wishing to use this in classrooms or on a VLE must get in touch first — see [LICENSE.md](LICENSE.md) for full details or email **southinn@colchsfc.ac.uk**.
